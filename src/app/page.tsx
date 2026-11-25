@@ -4,12 +4,14 @@ import { useState, useEffect } from 'react';
 import { motion, type Variants } from 'framer-motion';
 import { ShoppingBag } from 'lucide-react';
 import Preloader from '@/components/Preloader';
+import CartDrawer from '@/components/CartDrawer';
+import { Product, CartItem } from '@/types/cart';
 
-const PRODUCTS = [
-  { id: 1, name: 'Buzo Oversize Black', category: 'BUZOS', price: '$45.000', image: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=600&q=80' },
-  { id: 2, name: 'Remera Graphic Acid', category: 'REMERAS', price: '$22.000', image: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&fit=crop&w=600&q=80' },
-  { id: 3, name: 'Pantalón Cargo Heavy', category: 'PANTALONES', price: '$52.000', image: 'https://images.unsplash.com/photo-1517445312882-bc9910d016b7?auto=format&fit=crop&w=600&q=80' },
-  { id: 4, name: 'Buzo Hoodie Off-White', category: 'BUZOS', price: '$48.000', image: 'https://images.unsplash.com/photo-1509967419530-da38b4704bc6?auto=format&fit=crop&w=600&q=80' },
+const PRODUCTS: Product[] = [
+  { id: 1, name: 'Buzo Oversize Black', category: 'BUZOS', price: 45000, image: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=600&q=80' },
+  { id: 2, name: 'Remera Graphic Acid', category: 'REMERAS', price: 22000, image: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&fit=crop&w=600&q=80' },
+  { id: 3, name: 'Pantalón Cargo Heavy', category: 'PANTALONES', price: 52000, image: 'https://images.unsplash.com/photo-1517445312882-bc9910d016b7?auto=format&fit=crop&w=600&q=80' },
+  { id: 4, name: 'Buzo Hoodie Off-White', category: 'BUZOS', price: 48000, image: 'https://images.unsplash.com/photo-1509967419530-da38b4704bc6?auto=format&fit=crop&w=600&q=80' },
 ];
 
 const CATEGORIES = ['TODOS', 'BUZOS', 'REMERAS', 'PANTALONES'];
@@ -34,12 +36,46 @@ const itemVariants: Variants = {
 export default function Home() {
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('TODOS');
-  const [cartCount, setCartCount] = useState(0);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 1800);
     return () => clearTimeout(timer);
   }, []);
+
+  const handleAddToCart = (product: Product) => {
+    setCart((prevCart) => {
+      const existing = prevCart.find((item) => item.id === product.id);
+      if (existing) {
+        return prevCart.map((item) =>
+          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+        );
+      }
+      return [...prevCart, { ...product, quantity: 1 }];
+    });
+    setIsCartOpen(true);
+  };
+
+  const handleUpdateQuantity = (id: number, delta: number) => {
+    setCart((prevCart) =>
+      prevCart
+        .map((item) => {
+          if (item.id === id) {
+            const newQty = item.quantity + delta;
+            return newQty > 0 ? { ...item, quantity: newQty } : null;
+          }
+          return item;
+        })
+        .filter(Boolean) as CartItem[]
+    );
+  };
+
+  const handleRemoveItem = (id: number) => {
+    setCart((prevCart) => prevCart.filter((item) => item.id !== id));
+  };
+
+  const totalCartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
   const filteredProducts = activeCategory === 'TODOS'
     ? PRODUCTS
@@ -48,6 +84,14 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#f4f4f0] text-[#111111] antialiased selection:bg-black selection:text-white">
       <Preloader isLoading={loading} />
+
+      <CartDrawer
+        isOpen={isCartOpen}
+        onClose={() => setIsCartOpen(false)}
+        items={cart}
+        onUpdateQuantity={handleUpdateQuantity}
+        onRemoveItem={handleRemoveItem}
+      />
 
       <div className="bg-[#111111] text-white text-center py-2 text-[11px] font-semibold tracking-[0.2em] uppercase">
         ENVÍOS GRATIS EN COMPRAS SUPERIORES A $50.000
@@ -62,11 +106,14 @@ export default function Home() {
         <div className="text-xl font-black tracking-widest font-mono">
           ALINA <span className="text-neutral-400">&amp;</span> ADONIS
         </div>
-        <button className="flex items-center gap-2 border border-black px-5 py-2 rounded-full text-xs font-semibold hover:bg-black hover:text-white transition-all">
+        <button
+          onClick={() => setIsCartOpen(true)}
+          className="flex items-center gap-2 border border-black px-5 py-2 rounded-full text-xs font-semibold hover:bg-black hover:text-white transition-all"
+        >
           <ShoppingBag className="w-4 h-4" />
           <span>BOLSA</span>
           <span className="bg-black text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] ml-1">
-            {cartCount}
+            {totalCartCount}
           </span>
         </button>
       </motion.header>
@@ -146,10 +193,12 @@ export default function Home() {
               </div>
               <div className="p-4 flex flex-col grow">
                 <h3 className="font-semibold text-sm mb-1">{prod.name}</h3>
-                <span className="text-neutral-500 text-sm mb-4">{prod.price}</span>
+                <span className="text-neutral-500 text-sm mb-4">
+                  ${prod.price.toLocaleString('es-AR')}
+                </span>
                 <motion.button
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => setCartCount((prev) => prev + 1)}
+                  onClick={() => handleAddToCart(prod)}
                   className="mt-auto w-full bg-black text-white py-3 rounded text-xs font-bold tracking-wider uppercase hover:bg-neutral-800 transition-colors"
                 >
                   Agregar a la Bolsa
