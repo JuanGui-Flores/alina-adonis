@@ -1,163 +1,145 @@
 'use client';
 
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Minus, Trash2, ShoppingBag } from 'lucide-react';
-import { CartItem } from '@/types/cart';
+import { CartItem } from '@/types/store';
 
 interface CartDrawerProps {
-  isOpen: boolean;
-  onClose: () => void;
+  open: boolean;
   items: CartItem[];
-  onUpdateQuantity: (id: number, delta: number) => void;
-  onRemoveItem: (id: number) => void;
+  onClose: () => void;
+  onUpdateQty: (productId: string, size: string, delta: number) => void;
+  onRemoveItem: (productId: string, size: string) => void;
 }
 
+const formatARS = (amount: number) =>
+  new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0,
+  }).format(amount);
+
 export default function CartDrawer({
-  isOpen,
-  onClose,
+  open,
   items,
-  onUpdateQuantity,
+  onClose,
+  onUpdateQty,
   onRemoveItem,
 }: CartDrawerProps) {
-  const total = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  if (!open) return null;
 
-  const handleWhatsAppCheckout = () => {
-    if (items.length === 0) return;
+  const subtotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
-    const phoneNumber = '5492640000000'; // Reemplazar con el número oficial de Alina & Adonis
-    let message = '*NUEVO PEDIDO - ALINA & ADONIS*\n\n';
-
-    items.forEach((item) => {
-      message += `• *${item.name}* (x${item.quantity}) - $${(item.price * item.quantity).toLocaleString('es-AR')}\n`;
-    });
-
-    message += `\n*TOTAL:* $${total.toLocaleString('es-AR')}\n\n`;
-    message += '¡Hola! Quisiera coordinar el pago y envío de este pedido.';
-
-    const encodedMessage = encodeURIComponent(message);
-    window.open(`https://wa.me/${phoneNumber}?text=${encodedMessage}`, '_blank');
+  const buildWhatsAppUrl = () => {
+    const lines = [
+      'Hola Alina & Adonis, quiero consultar / pedir:',
+      ...items.map(
+        (i) =>
+          `• ${i.name} (Talle ${i.size}) x${i.quantity} — ${formatARS(i.price * i.quantity)}`
+      ),
+      `Total: ${formatARS(subtotal)}`,
+    ];
+    return `https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`;
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+    <div
+      className="fixed inset-0 z-50 flex justify-end bg-black/55 backdrop-blur-xs"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Bolsa de compras"
+    >
+      <aside
+        className="w-full max-w-md bg-white text-[#111111] h-full flex flex-col justify-between p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-neutral-200 pb-4">
+          <h2 className="font-serif text-2xl">Tu Bolsa</h2>
+          <button
+            type="button"
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
-          />
-
-          {/* Drawer Panel */}
-          <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-white z-50 shadow-2xl flex flex-col"
+            className="text-xs uppercase tracking-[0.15em] text-neutral-500 hover:text-[#111111] cursor-pointer"
           >
-            {/* Header Drawer */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-neutral-200">
-              <div className="flex items-center gap-2 font-mono font-black tracking-wider">
-                <ShoppingBag className="w-5 h-5" />
-                <span>TU BOLSA ({items.reduce((acc, i) => acc + i.quantity, 0)})</span>
-              </div>
-              <button
-                onClick={onClose}
-                className="p-2 text-neutral-500 hover:text-black rounded-full hover:bg-neutral-100 transition-colors"
+            Cerrar ✕
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto py-4 space-y-4">
+          {items.length === 0 ? (
+            <p className="text-sm text-neutral-500 py-12 text-center">
+              Todavía no agregaste prendas a tu bolsa.
+            </p>
+          ) : (
+            items.map((item) => (
+              <div
+                key={`${item.productId}-${item.size}`}
+                className="flex gap-3.5 border-b border-neutral-100 pb-4"
               >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+                <img
+                  src={item.image}
+                  alt={item.name}
+                  className="w-16 h-20 object-cover bg-[#F3F3F3] shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-sm font-medium truncate">{item.name}</h3>
+                    <button
+                      type="button"
+                      onClick={() => onRemoveItem(item.productId, item.size)}
+                      className="text-[11px] text-neutral-400 hover:text-[#111111] cursor-pointer"
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    Talle: {item.size} · {formatARS(item.price)}
+                  </p>
 
-            {/* Listado de Productos */}
-            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-              {items.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-neutral-400 gap-3">
-                  <ShoppingBag className="w-12 h-12 stroke-[1.5]" />
-                  <p className="text-sm font-medium">Tu bolsa está vacía</p>
+                  <div className="mt-2.5 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onUpdateQty(item.productId, item.size, -1)}
+                      className="w-6 h-6 border border-neutral-300 text-xs flex items-center justify-center hover:border-[#111111] cursor-pointer"
+                    >
+                      -
+                    </button>
+                    <span className="text-xs font-semibold w-5 text-center">
+                      {item.quantity}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onUpdateQty(item.productId, item.size, 1)}
+                      className="w-6 h-6 border border-neutral-300 text-xs flex items-center justify-center hover:border-[#111111] cursor-pointer"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
-              ) : (
-                items.map((item) => (
-                  <motion.div
-                    layout
-                    key={item.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="flex gap-4 border border-neutral-100 p-3 rounded-lg bg-neutral-50/50"
-                  >
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="w-20 h-24 object-cover rounded bg-neutral-200"
-                    />
-                    <div className="flex-1 flex flex-col justify-between">
-                      <div>
-                        <div className="flex justify-between items-start">
-                          <h4 className="font-semibold text-xs text-neutral-900 uppercase tracking-tight">
-                            {item.name}
-                          </h4>
-                          <button
-                            onClick={() => onRemoveItem(item.id)}
-                            className="text-neutral-400 hover:text-red-600 transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <p className="text-xs font-bold text-neutral-600 mt-1">
-                          ${item.price.toLocaleString('es-AR')}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center justify-between mt-2">
-                        <div className="flex items-center border border-neutral-300 rounded bg-white">
-                          <button
-                            onClick={() => onUpdateQuantity(item.id, -1)}
-                            className="p-1 text-neutral-600 hover:bg-neutral-100"
-                          >
-                            <Minus className="w-3 h-3" />
-                          </button>
-                          <span className="px-3 text-xs font-semibold">{item.quantity}</span>
-                          <button
-                            onClick={() => onUpdateQuantity(item.id, 1)}
-                            className="p-1 text-neutral-600 hover:bg-neutral-100"
-                          >
-                            <Plus className="w-3 h-3" />
-                          </button>
-                        </div>
-                        <span className="text-xs font-bold">
-                          ${(item.price * item.quantity).toLocaleString('es-AR')}
-                        </span>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))
-              )}
-            </div>
-
-            {/* Footer Checkout */}
-            {items.length > 0 && (
-              <div className="p-6 border-t border-neutral-200 bg-white space-y-4">
-                <div className="flex justify-between items-center text-sm font-bold">
-                  <span>TOTAL ESTIMADO</span>
-                  <span className="text-lg font-mono">${total.toLocaleString('es-AR')}</span>
-                </div>
-                <motion.button
-                  whileTap={{ scale: 0.97 }}
-                  onClick={handleWhatsAppCheckout}
-                  className="w-full bg-black text-white py-4 rounded-full text-xs font-bold tracking-[0.2em] uppercase hover:bg-neutral-800 transition-colors shadow-lg"
-                >
-                  Finalizar Compra por WhatsApp
-                </motion.button>
               </div>
-            )}
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+            ))
+          )}
+        </div>
+
+        <div className="border-t border-neutral-200 pt-4 space-y-4">
+          <div className="flex items-center justify-between text-sm font-semibold">
+            <span className="uppercase tracking-[0.12em]">Subtotal</span>
+            <span>{formatARS(subtotal)}</span>
+          </div>
+
+          <a
+            href={items.length > 0 ? buildWhatsAppUrl() : undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-disabled={items.length === 0}
+            className={`block w-full text-center py-3.5 text-xs sm:text-sm font-semibold uppercase tracking-[0.16em] transition-colors ${
+              items.length > 0
+                ? 'bg-[#111111] text-white hover:bg-neutral-800'
+                : 'bg-neutral-200 text-neutral-400 pointer-events-none'
+            }`}
+          >
+            Pedir por WhatsApp
+          </a>
+        </div>
+      </aside>
+    </div>
   );
 }

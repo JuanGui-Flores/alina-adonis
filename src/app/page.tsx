@@ -1,213 +1,247 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { motion, type Variants } from 'framer-motion';
-import { ShoppingBag } from 'lucide-react';
-import Preloader from '@/components/Preloader';
-import CartDrawer from '@/components/CartDrawer';
-import { Product, CartItem } from '@/types/cart';
+import { useMemo, useState } from "react";
+import Hero from "@/components/Hero";
+import ProductModal from "@/components/ProductModal";
+import CartDrawer from "@/components/CartDrawer";
+import { PRODUCTS } from "@/data/products";
+import { CartItem, Category, Product } from "@/types/store";
+import Image from "next/image";
 
-const PRODUCTS: Product[] = [
-  { id: 1, name: 'Buzo Oversize Black', category: 'BUZOS', price: 45000, image: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=600&q=80' },
-  { id: 2, name: 'Remera Graphic Acid', category: 'REMERAS', price: 22000, image: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&fit=crop&w=600&q=80' },
-  { id: 3, name: 'Pantalón Cargo Heavy', category: 'PANTALONES', price: 52000, image: 'https://images.unsplash.com/photo-1517445312882-bc9910d016b7?auto=format&fit=crop&w=600&q=80' },
-  { id: 4, name: 'Buzo Hoodie Off-White', category: 'BUZOS', price: 48000, image: 'https://images.unsplash.com/photo-1509967419530-da38b4704bc6?auto=format&fit=crop&w=600&q=80' },
+const CATEGORIES: Category[] = [
+  "All",
+  "Hoodies",
+  "Tees",
+  "Bottoms",
+  "Outerwear",
 ];
 
-const CATEGORIES = ['TODOS', 'BUZOS', 'REMERAS', 'PANTALONES'];
-
-const containerVariants: Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1 },
-  },
+const CATEGORY_LABELS: Record<Category, string> = {
+  All: "Todo",
+  Hoodies: "Buzos",
+  Tees: "Remeras",
+  Bottoms: "Pantalones",
+  Outerwear: "Camperas",
 };
 
-const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 25 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] },
-  },
-};
+const formatARS = (amount: number) =>
+  new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: "ARS",
+    maximumFractionDigits: 0,
+  }).format(amount);
 
-export default function Home() {
-  const [loading, setLoading] = useState(true);
-  const [activeCategory, setActiveCategory] = useState('TODOS');
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [isCartOpen, setIsCartOpen] = useState(false);
+export default function HomePage() {
+  const [selectedCategory, setSelectedCategory] = useState<Category>("All");
+  const [activeProduct, setActiveProduct] = useState<Product | null>(null);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 1800);
-    return () => clearTimeout(timer);
-  }, []);
+  const filteredProducts = useMemo(() => {
+    if (selectedCategory === "All") return PRODUCTS;
+    return PRODUCTS.filter((p) => p.category === selectedCategory);
+  }, [selectedCategory]);
 
-  const handleAddToCart = (product: Product) => {
-    setCart((prevCart) => {
-      const existing = prevCart.find((item) => item.id === product.id);
-      if (existing) {
-        return prevCart.map((item) =>
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-        );
+  const totalCount = useMemo(
+    () => cartItems.reduce((sum, item) => sum + item.quantity, 0),
+    [cartItems],
+  );
+
+  const handleAddToCart = (product: Product, size: string) => {
+    setCartItems((prev) => {
+      const idx = prev.findIndex(
+        (item) => item.productId === product.id && item.size === size,
+      );
+      if (idx > -1) {
+        const copy = [...prev];
+        copy[idx] = { ...copy[idx], quantity: copy[idx].quantity + 1 };
+        return copy;
       }
-      return [...prevCart, { ...product, quantity: 1 }];
+      return [
+        ...prev,
+        {
+          productId: product.id,
+          name: product.name,
+          price: product.price,
+          size,
+          quantity: 1,
+          image: product.images[0],
+        },
+      ];
     });
-    setIsCartOpen(true);
+    setCartOpen(true);
   };
 
-  const handleUpdateQuantity = (id: number, delta: number) => {
-    setCart((prevCart) =>
-      prevCart
-        .map((item) => {
-          if (item.id === id) {
-            const newQty = item.quantity + delta;
-            return newQty > 0 ? { ...item, quantity: newQty } : null;
-          }
-          return item;
-        })
-        .filter(Boolean) as CartItem[]
+  const handleUpdateQty = (productId: string, size: string, delta: number) => {
+    setCartItems((prev) =>
+      prev
+        .map((item) =>
+          item.productId === productId && item.size === size
+            ? { ...item, quantity: item.quantity + delta }
+            : item,
+        )
+        .filter((item) => item.quantity > 0),
     );
   };
 
-  const handleRemoveItem = (id: number) => {
-    setCart((prevCart) => prevCart.filter((item) => item.id !== id));
+  const handleRemoveItem = (productId: string, size: string) => {
+    setCartItems((prev) =>
+      prev.filter(
+        (item) => !(item.productId === productId && item.size === size),
+      ),
+    );
   };
 
-  const totalCartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
-
-  const filteredProducts = activeCategory === 'TODOS'
-    ? PRODUCTS
-    : PRODUCTS.filter((p) => p.category === activeCategory);
-
   return (
-    <div className="min-h-screen bg-[#f4f4f0] text-[#111111] antialiased selection:bg-black selection:text-white">
-      <Preloader isLoading={loading} />
+    <div className="min-h-screen bg-[#FAFAFA] text-[#111111]">
+      {/* Header superior */}
+      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-neutral-200">
+        <div className="max-w-7xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between">
+          <a
+            href="#top"
+            className="font-serif text-xl sm:text-2xl tracking-tight font-semibold"
+          >
+            Alina &amp; Adonis
+          </a>
 
-      <CartDrawer
-        isOpen={isCartOpen}
-        onClose={() => setIsCartOpen(false)}
-        items={cart}
-        onUpdateQuantity={handleUpdateQuantity}
-        onRemoveItem={handleRemoveItem}
-      />
+          <nav className="hidden md:flex items-center gap-6 text-xs uppercase tracking-[0.16em] text-neutral-600">
+            {CATEGORIES.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => {
+                  setSelectedCategory(cat);
+                  document
+                    .getElementById("catalog")
+                    ?.scrollIntoView({ behavior: "smooth" });
+                }}
+                className={`hover:text-[#111111] transition-colors cursor-pointer ${
+                  selectedCategory === cat ? "text-[#111111] font-semibold" : ""
+                }`}
+              >
+                {CATEGORY_LABELS[cat]}
+              </button>
+            ))}
+          </nav>
 
-      <div className="bg-[#111111] text-white text-center py-2 text-[11px] font-semibold tracking-[0.2em] uppercase">
-        ENVÍOS GRATIS EN COMPRAS SUPERIORES A $50.000
+          <button
+            type="button"
+            onClick={() => setCartOpen(true)}
+            className="px-4 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-[0.15em] hover:bg-neutral-800 transition-colors cursor-pointer"
+          >
+            Bolsa ({totalCount})
+          </button>
+        </div>
+      </header>
+
+      {/* Hero con imagen A/A */}
+      <div id="top">
+        <Hero
+          onSelectCategory={(cat) => {
+            if (CATEGORIES.includes(cat as Category)) {
+              setSelectedCategory(cat as Category);
+            }
+          }}
+        />
       </div>
 
-      <motion.header
-        initial={{ y: -50, opacity: 0 }}
-        animate={!loading ? { y: 0, opacity: 1 } : { y: -50, opacity: 0 }}
-        transition={{ duration: 0.6 }}
-        className="sticky top-0 z-40 flex items-center justify-between px-6 md:px-12 h-20 bg-white/90 backdrop-blur-md border-b border-neutral-200"
+      {/* Catálogo y filtros */}
+      <main
+        id="catalog"
+        className="max-w-7xl mx-auto px-5 sm:px-8 py-14 sm:py-20"
       >
-        <div className="text-xl font-black tracking-widest font-mono">
-          ALINA <span className="text-neutral-400">&amp;</span> ADONIS
-        </div>
-        <button
-          onClick={() => setIsCartOpen(true)}
-          className="flex items-center gap-2 border border-black px-5 py-2 rounded-full text-xs font-semibold hover:bg-black hover:text-white transition-all"
-        >
-          <ShoppingBag className="w-4 h-4" />
-          <span>BOLSA</span>
-          <span className="bg-black text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] ml-1">
-            {totalCartCount}
-          </span>
-        </button>
-      </motion.header>
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 border-b border-neutral-200 pb-6">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+              Colección Actual
+            </p>
+            <h2 className="font-serif text-3xl sm:text-4xl mt-1">
+              {CATEGORY_LABELS[selectedCategory]}
+            </h2>
+          </div>
 
-      <section
-        className="relative h-[75vh] flex items-center justify-center text-center text-white bg-cover bg-center"
-        style={{ backgroundImage: "linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.65)), url('https://images.unsplash.com/photo-1523381294911-8d3cead13475?auto=format&fit=crop&w=1600&q=80')" }}
-      >
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={!loading ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-          transition={{ duration: 0.8, delay: 0.15 }}
-          className="max-w-2xl px-4"
-        >
-          <span className="text-xs font-bold tracking-[0.3em] uppercase opacity-90">URBAN WEAR 2026</span>
-          <h1 className="text-5xl md:text-7xl font-black uppercase my-4 leading-none tracking-tight">Desafía el Estilo</h1>
-          <motion.a
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.96 }}
-            href="#tienda"
-            className="inline-block bg-white text-black px-8 py-4 rounded-full font-bold text-xs tracking-[0.2em] uppercase shadow-lg hover:bg-neutral-100 transition-colors"
-          >
-            Ver Colección
-          </motion.a>
-        </motion.div>
-      </section>
-
-      <main id="tienda" className="max-w-7xl mx-auto px-6 md:px-12 py-16">
-        <div className="text-center mb-10">
-          <h2 className="text-3xl font-extrabold tracking-wide uppercase">Nuevos Ingresos</h2>
-          <p className="text-neutral-500 text-sm mt-1">Prendas diseñadas para destacar.</p>
-        </div>
-
-        <div className="flex justify-center gap-2 mb-12 flex-wrap">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className={`relative px-5 py-2 rounded-full text-xs font-semibold tracking-wider transition-colors ${
-                activeCategory === cat ? 'text-white' : 'text-black bg-white border border-neutral-300'
-              }`}
-            >
-              {activeCategory === cat && (
-                <motion.div
-                  layoutId="activePill"
-                  className="absolute inset-0 bg-black rounded-full -z-10"
-                  transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                />
-              )}
-              {cat}
-            </button>
-          ))}
-        </div>
-
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          key={activeCategory}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
-        >
-          {filteredProducts.map((prod) => (
-            <motion.div
-              key={prod.id}
-              variants={itemVariants}
-              whileHover={{ y: -6 }}
-              className="bg-white border border-neutral-200 rounded-lg overflow-hidden flex flex-col shadow-sm"
-            >
-              <div className="overflow-hidden h-72 relative">
-                <motion.img
-                  whileHover={{ scale: 1.06 }}
-                  transition={{ duration: 0.4 }}
-                  src={prod.image}
-                  alt={prod.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="p-4 flex flex-col grow">
-                <h3 className="font-semibold text-sm mb-1">{prod.name}</h3>
-                <span className="text-neutral-500 text-sm mb-4">
-                  ${prod.price.toLocaleString('es-AR')}
-                </span>
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => handleAddToCart(prod)}
-                  className="mt-auto w-full bg-black text-white py-3 rounded text-xs font-bold tracking-wider uppercase hover:bg-neutral-800 transition-colors"
+          <div className="flex flex-wrap gap-2">
+            {CATEGORIES.map((cat) => {
+              const active = selectedCategory === cat;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-4 py-2 text-xs font-medium uppercase tracking-[0.14em] transition-colors cursor-pointer ${
+                    active
+                      ? "bg-[#111111] text-white"
+                      : "bg-white text-neutral-700 border border-neutral-300 hover:border-[#111111]"
+                  }`}
                 >
-                  Agregar a la Bolsa
-                </motion.button>
+                  {CATEGORY_LABELS[cat]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
+          {filteredProducts.map((product) => (
+            <article
+              key={product.id}
+              onClick={() => setActiveProduct(product)}
+              className="group bg-white border border-neutral-200/80 hover:border-neutral-400 transition-colors cursor-pointer flex flex-col"
+            >
+              <div className="relative aspect-4/5 w-full overflow-hidden bg-[#F3F3F3]">
+                <Image
+                  src={product.images[0]}
+                  alt={product.name}
+                  fill
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                  className="object-cover object-center group-hover:scale-103 transition-transform duration-500"
+                />
+                {product.badge && (
+                  <span className="absolute top-3 left-3 px-2.5 py-1 bg-white/95 text-[#111111] text-[10px] font-semibold uppercase tracking-[0.15em]">
+                    {product.badge}
+                  </span>
+                )}
               </div>
-            </motion.div>
+
+              <div className="p-4 flex-1 flex flex-col justify-between gap-3">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.15em] text-neutral-400">
+                    {CATEGORY_LABELS[product.category]}
+                  </p>
+                  <h3 className="mt-1 text-sm sm:text-base font-medium text-[#111111]">
+                    {product.name}
+                  </h3>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-sm font-semibold text-[#111111]">
+                    {formatARS(product.price)}
+                  </span>
+                  <span className="text-xs uppercase tracking-[0.14em] text-neutral-500 group-hover:text-[#111111]">
+                    Ver detalle →
+                  </span>
+                </div>
+              </div>
+            </article>
           ))}
-        </motion.div>
+        </div>
       </main>
+
+      {/* Modal de detalle de producto */}
+      <ProductModal
+        product={activeProduct}
+        onClose={() => setActiveProduct(null)}
+        onAddToCart={handleAddToCart}
+      />
+
+      {/* Bolsa lateral */}
+      <CartDrawer
+        open={cartOpen}
+        items={cartItems}
+        onClose={() => setCartOpen(false)}
+        onUpdateQty={handleUpdateQty}
+        onRemoveItem={handleRemoveItem}
+      />
     </div>
   );
 }
