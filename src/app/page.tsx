@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, type Variants } from 'framer-motion';
 import { ShoppingBag } from 'lucide-react';
 import Preloader from '@/components/Preloader';
 
@@ -14,7 +14,7 @@ const PRODUCTS = [
 
 const CATEGORIES = ['TODOS', 'BUZOS', 'REMERAS', 'PANTALONES'];
 
-const containerVariants = {
+const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
@@ -22,9 +22,13 @@ const containerVariants = {
   },
 };
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: 25 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] },
+  },
 };
 
 export default function Home() {
@@ -51,8 +55,8 @@ export default function Home() {
 
       <motion.header
         initial={{ y: -50, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.6, delay: 2 }}
+        animate={!loading ? { y: 0, opacity: 1 } : { y: -50, opacity: 0 }}
+        transition={{ duration: 0.6 }}
         className="sticky top-0 z-40 flex items-center justify-between px-6 md:px-12 h-20 bg-white/90 backdrop-blur-md border-b border-neutral-200"
       >
         <div className="text-xl font-black tracking-widest font-mono">
@@ -73,8 +77,8 @@ export default function Home() {
       >
         <motion.div
           initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 2.2 }}
+          animate={!loading ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
+          transition={{ duration: 0.8, delay: 0.15 }}
           className="max-w-2xl px-4"
         >
           <span className="text-xs font-bold tracking-[0.3em] uppercase opacity-90">URBAN WEAR 2026</span>
@@ -140,7 +144,7 @@ export default function Home() {
                   className="w-full h-full object-cover"
                 />
               </div>
-              <div className="p-4 flex flex-col flex-grow">
+              <div className="p-4 flex flex-col grow">
                 <h3 className="font-semibold text-sm mb-1">{prod.name}</h3>
                 <span className="text-neutral-500 text-sm mb-4">{prod.price}</span>
                 <motion.button
